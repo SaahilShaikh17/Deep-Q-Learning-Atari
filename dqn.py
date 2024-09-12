@@ -44,7 +44,7 @@ class Network(nn.Module):
 
 
 # Setting up the environment
-env = gym.make('CartPole-v1')
+env = gym.make('CartPole-v1',render_mode="human")
 replay_buffer = deque(maxlen=BUFFER_SIZE)
 rew_buffer = deque(maxlen=100)  # Store rewards for each episode
 episode_reward = 0.0
@@ -79,17 +79,30 @@ for step in itertools.count():
         rew_buffer.append(episode_reward)
         episode_reward = 0.0
 
+    # after solved, watch it play
+    if len(rew_buffer) >= 100:
+        if np.mean(rew_buffer) >= 195:
+            obs, _ = env.reset()  # Reset observation before entering the loop
+            while True:
+                action = online_net.act(obs)
+                obs, _, done, truncated, _ = env.step(action)
+                done = done or truncated  # Combine termination signals
+                env.render()  # Ensure rendering is called
+
+                if done:
+                    obs, _ = env.reset()
+
     # Start Gradient Step if replay buffer has enough transitions
     if len(replay_buffer) >= BATCH_SIZE:
         transitions = random.sample(replay_buffer, BATCH_SIZE)
         obses, actions, rews, dones, new_obses = zip(*transitions)
 
         # Convert to tensor
-        obses_t = torch.as_tensor(obses, dtype=torch.float32)
+        obses_t = torch.as_tensor(np.array(obses), dtype=torch.float32)
+        new_obses_t = torch.as_tensor(np.array(new_obses), dtype=torch.float32)
         actions_t = torch.as_tensor(actions, dtype=torch.int64).unsqueeze(-1)
         rews_t = torch.as_tensor(rews, dtype=torch.float32).unsqueeze(-1)
         dones_t = torch.as_tensor(dones, dtype=torch.float32).unsqueeze(-1)
-        new_obses_t = torch.as_tensor(new_obses, dtype=torch.float32)
 
         # Compute Targets
         with torch.no_grad():  # Detach to avoid backpropagation through target net
